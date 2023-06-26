@@ -11,17 +11,30 @@ mod services;
 use actix_web::{web, App, HttpServer};
 use db::connection::Connection;
 use dotenv::dotenv;
+use log::{error, info};
+use std::process::exit;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    std::env::set_var("RUST_LOG", "debug");
     env_logger::init();
     dotenv().ok();
 
     let app_config = config::load_config();
-    let uri = std::env::var("MONGODB_URI").unwrap_or_else(|_| "mongodb://localhost:27017".into());
+    let app_host = std::env::var("APP_HOST").unwrap_or_else(|_| "127.0.0.1".into());
+    let app_port = std::env::var("APP_PORT").unwrap_or_else(|_| "3000".into());
+    let uri = std::env::var("DB_CONN_STR").unwrap_or_else(|_| "mongodb://localhost:27017".into());
     let db_name = std::env::var("DB_NAME").unwrap();
-    let connection: Connection = Connection::new(uri, db_name).await;
+    let connect_to_mongo = Connection::new(uri, db_name).await;
+
+    info!("STARTING APP AT {}:{}", app_host, app_port);
+
+    let connection = match connect_to_mongo {
+        Ok(connection) => connection,
+        Err(e) => {
+            error!("Error connection to Mongo: {}", e);
+            exit(1);
+        }
+    };
 
     println!("{:#?}", app_config);
 
@@ -31,7 +44,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(app_config.clone()))
             .configure(router::router(connection.clone(), app_config.clone()))
     })
-    .bind(("127.0.0.1", 8080))?
+    .bind((app_host, app_port.parse::<u16>().unwrap()))?
     .run()
     .await
 }

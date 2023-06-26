@@ -1329,6 +1329,7 @@ dependencies = [
  "dotenv",
  "env_logger",
  "envy",
+ "log",
  "mongodb",
  "serde",
 ]
